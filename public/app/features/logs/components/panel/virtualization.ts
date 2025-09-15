@@ -182,7 +182,8 @@ export class LogLineVirtualization {
   calculateFieldDimensions = (
     logs: LogListModel[],
     displayedFields: string[] = [],
-    timestampResolution: LogLineTimestampResolution
+    timestampResolution: LogLineTimestampResolution,
+    showUniqueLabels?: boolean
   ) => {
     if (!logs.length) {
       return [];
@@ -214,6 +215,12 @@ export class LogLineVirtualization {
         width: levelWidth,
       },
     ];
+    if (showUniqueLabels) {
+      dimensions.push({
+        field: 'unique-labels',
+        width: 0,
+      });
+    }
     for (const field in fieldWidths) {
       dimensions.push({
         field,
@@ -317,40 +324,6 @@ export function getLogLineSize(
 export interface LogFieldDimension {
   field: string;
   width: number;
-}
-
-export function hasUnderOrOverflow(
-  virtualization: LogLineVirtualization,
-  element: HTMLDivElement,
-  calculatedHeight?: number,
-  collapsed?: boolean
-): number | null {
-  if (collapsed !== undefined && calculatedHeight) {
-    calculatedHeight -= virtualization.getLineHeight();
-  }
-  const inlineDetails = element.parentElement
-    ? Array.from(element.parentElement.children).filter((element) =>
-        element.classList.contains('log-line-inline-details')
-      )
-    : undefined;
-  const detailsHeight = inlineDetails?.length ? inlineDetails[0].clientHeight : 0;
-
-  // Line overflows container
-  let measuredHeight = element.scrollHeight + detailsHeight;
-  const height = calculatedHeight ?? element.clientHeight;
-  if (measuredHeight > height) {
-    return collapsed !== undefined ? measuredHeight + virtualization.getLineHeight() : measuredHeight;
-  }
-
-  // Line is smaller than container
-  const child = element.children[1];
-  measuredHeight = child.clientHeight + detailsHeight;
-  if (child instanceof HTMLDivElement && measuredHeight < height) {
-    return collapsed !== undefined ? measuredHeight + virtualization.getLineHeight() : measuredHeight;
-  }
-
-  // No overflow or undermeasurement
-  return null;
 }
 
 const logLineMenuIconWidth = 24;

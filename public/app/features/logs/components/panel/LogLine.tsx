@@ -1,6 +1,7 @@
 import { css } from '@emotion/css';
-import { CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useState, MouseEvent } from 'react';
+import { CSSProperties, memo, useCallback, useEffect, useMemo, useState, MouseEvent } from 'react';
 import Highlighter from 'react-highlight-words';
+import { useMeasure } from 'react-use';
 import tinycolor from 'tinycolor2';
 
 import { findHighlightChunksInText, GrafanaTheme2, LogsDedupStrategy, TimeRange } from '@grafana/data';
@@ -8,6 +9,7 @@ import { t } from '@grafana/i18n';
 import { Button, Icon, Tooltip } from '@grafana/ui';
 
 import { LOG_LINE_BODY_FIELD_NAME } from '../LogDetailsBody';
+import { LogLabels } from '../LogLabels';
 import { LogMessageAnsi } from '../LogMessageAnsi';
 
 import { HighlightedLogRenderer } from './HighlightedLogRenderer';
@@ -16,13 +18,7 @@ import { LogLineMenu } from './LogLineMenu';
 import { useLogIsPermalinked, useLogIsPinned, useLogListContext } from './LogListContext';
 import { useLogListSearchContext } from './LogListSearchContext';
 import { LogListModel } from './processing';
-import {
-  FIELD_GAP_MULTIPLIER,
-  hasUnderOrOverflow,
-  LogFieldDimension,
-  LogLineVirtualization,
-  DEFAULT_LINE_HEIGHT,
-} from './virtualization';
+import { FIELD_GAP_MULTIPLIER, LogFieldDimension, LogLineVirtualization, DEFAULT_LINE_HEIGHT } from './virtualization';
 
 export interface Props {
   displayedFields: string[];
@@ -30,6 +26,7 @@ export interface Props {
   log: LogListModel;
   logs: LogListModel[];
   showTime: boolean;
+  showUniqueLabels?: boolean;
   style: CSSProperties;
   styles: LogLineStyles;
   timeRange: TimeRange;
@@ -108,24 +105,24 @@ const LogLineComponent = memo(
       fontSize,
       hasLogsWithErrors,
       hasSampledLogs,
+      showUniqueLabels,
       timestampResolution,
       onLogLineHover,
     } = useLogListContext();
     const [collapsed, setCollapsed] = useState<boolean | undefined>(
       wrapLogMessage && log.collapsed !== undefined ? log.collapsed : undefined
     );
-    const logLineRef = useRef<HTMLDivElement | null>(null);
     const pinned = useLogIsPinned(log);
     const permalinked = useLogIsPermalinked(log);
+    const [logLineRef, dimensions] = useMeasure<HTMLDivElement>();
 
     useEffect(() => {
-      if (!onOverflow || !logLineRef.current || !virtualization || !height || !wrapLogMessage) {
+      if (!onOverflow || !virtualization || !height || !wrapLogMessage) {
         return;
       }
       const calculatedHeight = typeof height === 'number' ? height : undefined;
-      const actualHeight = hasUnderOrOverflow(virtualization, logLineRef.current, calculatedHeight, log.collapsed);
-      if (actualHeight) {
-        onOverflow(index, log.uid, actualHeight);
+      if (calculatedHeight !== dimensions.height && dimensions.height > 0) {
+        onOverflow(index, log.uid, dimensions.height);
       }
     });
 
@@ -156,16 +153,6 @@ const LogLineComponent = memo(
       },
       [log, onClick]
     );
-
-    const handleLogDetailsResize = useCallback(() => {
-      if (!onOverflow || !logLineRef.current || !virtualization) {
-        return;
-      }
-      const actualHeight = hasUnderOrOverflow(virtualization, logLineRef.current, undefined, log.collapsed);
-      if (actualHeight) {
-        onOverflow(index, log.uid, actualHeight);
-      }
-    }, [index, log.collapsed, log.uid, onOverflow, virtualization]);
 
     const detailsShown = detailsDisplayed(log);
 
@@ -233,6 +220,7 @@ const LogLineComponent = memo(
               displayedFields={displayedFields}
               log={log}
               showTime={showTime}
+              showUniqueLabels={showUniqueLabels}
               styles={styles}
               timestampResolution={timestampResolution}
               wrapLogMessage={wrapLogMessage}
@@ -266,13 +254,7 @@ const LogLineComponent = memo(
           </div>
         )}
         {detailsMode === 'inline' && detailsShown && (
-          <InlineLogLineDetails
-            logs={logs}
-            log={log}
-            onResize={handleLogDetailsResize}
-            timeRange={timeRange}
-            timeZone={timeZone}
-          />
+          <InlineLogLineDetails logs={logs} log={log} timeRange={timeRange} timeZone={timeZone} />
         )}
       </>
     );
@@ -287,33 +269,53 @@ interface LogProps {
   displayedFields: string[];
   log: LogListModel;
   showTime: boolean;
+  showUniqueLabels?: boolean;
   styles: LogLineStyles;
   timestampResolution: LogLineTimestampResolution;
   wrapLogMessage: boolean;
 }
 
-const Log = memo(({ displayedFields, log, showTime, styles, timestampResolution, wrapLogMessage }: LogProps) => {
-  return (
-    <>
-      {showTime && (
-        <span className={`${styles.timestamp} level-${log.logLevel} field`}>
-          {timestampResolution === 'ms' ? log.timestamp : log.timestampNs}
-        </span>
-      )}
-      {
-        // When logs are unwrapped, we want an empty column space to align with other log lines.
-      }
-      {(log.displayLevel || !wrapLogMessage) && (
-        <span className={`${styles.level} level-${log.logLevel} field`}>{log.displayLevel}</span>
-      )}
-      {displayedFields.length > 0 ? (
-        <DisplayedFields displayedFields={displayedFields} log={log} styles={styles} />
-      ) : (
-        <LogLineBody log={log} styles={styles} />
-      )}
-    </>
-  );
-});
+const Log = memo(
+  ({ displayedFields, log, showTime, showUniqueLabels, styles, timestampResolution, wrapLogMessage }: LogProps) => {
+    const handleLabelsToggle = useCallback(
+      (expanded: boolean) => {
+        log.uniqueLabelsExpanded = expanded;
+      },
+      [log]
+    );
+    return (
+      <>
+        {showTime && (
+          <span className={`${styles.timestamp} level-${log.logLevel} field`}>
+            {timestampResolution === 'ms' ? log.timestamp : log.timestampNs}
+          </span>
+        )}
+        {
+          // When logs are unwrapped, we want an empty column space to align with other log lines.
+        }
+        {(log.displayLevel || !wrapLogMessage) && (
+          <span className={`${styles.level} level-${log.logLevel} field`}>{log.displayLevel}</span>
+        )}
+        {showUniqueLabels && log.uniqueLabels && (
+          <span className="field">
+            <LogLabels
+              addTooltip={true}
+              displayAll={log.uniqueLabelsExpanded}
+              displayMax={5}
+              labels={log.uniqueLabels}
+              onDisplayMaxToggle={handleLabelsToggle}
+            />
+          </span>
+        )}
+        {displayedFields.length > 0 ? (
+          <DisplayedFields displayedFields={displayedFields} log={log} styles={styles} />
+        ) : (
+          <LogLineBody log={log} styles={styles} />
+        )}
+      </>
+    );
+  }
+);
 Log.displayName = 'Log';
 
 const DisplayedFields = ({
@@ -402,9 +404,11 @@ const LogLineBody = ({ log, styles }: { log: LogListModel; styles: LogLineStyles
 };
 
 export function getGridTemplateColumns(dimensions: LogFieldDimension[], displayedFields: string[]) {
-  const columns = dimensions.map((dimension) => dimension.width).join('px ');
+  const columns = dimensions
+    .map((dimension) => (dimension.width > 0 ? `${dimension.width}px` : 'fit-content(50%)'))
+    .join(' ');
   const logLineWidth = displayedFields.length > 0 ? '' : ' 1fr';
-  return `${columns}px${logLineWidth}`;
+  return `${columns}${logLineWidth}`;
 }
 
 export type LogLineStyles = ReturnType<typeof getStyles>;

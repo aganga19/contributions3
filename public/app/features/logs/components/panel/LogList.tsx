@@ -78,6 +78,7 @@ export interface Props {
   setDisplayedFields?: (displayedFields: string[]) => void;
   showControls: boolean;
   showTime: boolean;
+  showUniqueLabels?: boolean;
   sortOrder: LogsSortOrder;
   timeRange: TimeRange;
   timestampResolution?: LogLineTimestampResolution;
@@ -146,6 +147,7 @@ export const LogList = ({
   setDisplayedFields,
   showControls,
   showTime,
+  showUniqueLabels,
   sortOrder,
   syntaxHighlighting = logOptionsStorageKey ? store.getBool(`${logOptionsStorageKey}.syntaxHighlighting`, true) : true,
   timeRange,
@@ -189,6 +191,7 @@ export const LogList = ({
       setDisplayedFields={setDisplayedFields}
       showControls={showControls}
       showTime={showTime}
+      showUniqueLabels={showUniqueLabels}
       sortOrder={sortOrder}
       syntaxHighlighting={syntaxHighlighting}
       timestampResolution={timestampResolution}
@@ -244,6 +247,7 @@ const LogListComponent = ({
     prettifyJSON,
     showDetails,
     showTime,
+    showUniqueLabels,
     sortOrder,
     timestampResolution,
     toggleDetails,
@@ -261,8 +265,13 @@ const LogListComponent = ({
     () =>
       wrapLogMessage
         ? []
-        : virtualization.calculateFieldDimensions(processedLogs, displayedFields, timestampResolution),
-    [displayedFields, processedLogs, timestampResolution, virtualization, wrapLogMessage]
+        : virtualization.calculateFieldDimensions(
+            processedLogs,
+            displayedFields,
+            timestampResolution,
+            showUniqueLabels
+          ),
+    [displayedFields, processedLogs, showUniqueLabels, timestampResolution, virtualization, wrapLogMessage]
   );
   const styles = useStyles2(getStyles, dimensions, displayedFields, { showTime });
   const widthContainer = wrapperRef.current ?? containerElement;
@@ -292,11 +301,9 @@ const LogListComponent = ({
     [filterLogs, levelFilteredLogs, matchingUids]
   );
 
-  const debouncedResetAfterIndex = useMemo(() => {
-    return debounce((index: number) => {
-      listRef.current?.resetAfterIndex(index);
-      overflowIndexRef.current = Infinity;
-    }, 25);
+  const resetAfterIndex = useCallback((index: number) => {
+    listRef.current?.resetAfterIndex(index);
+    overflowIndexRef.current = Infinity;
   }, []);
 
   const debouncedScrollToItem = useMemo(() => {
@@ -337,17 +344,18 @@ const LogListComponent = ({
   }, [wrapLogMessage, showDetails, displayedFields, dedupStrategy]);
 
   useLayoutEffect(() => {
-    if (widthRef.current !== widthContainer.clientWidth) {
-      widthRef.current = widthContainer.clientWidth;
-      debouncedResetAfterIndex(0);
-    }
-  });
-
-  useLayoutEffect(() => {
-    const handleResize = debounce(() => {
+    const handleResize = (entry: ResizeObserverEntry) => {
       setListHeight(getListHeight(containerElement, app, searchVisible));
-    }, 50);
-    const observer = new ResizeObserver(() => handleResize());
+      if (widthRef.current !== entry.contentRect.width) {
+        widthRef.current = entry.contentRect.width;
+        listRef.current?.resetAfterIndex(0);
+      }
+    };
+    const observer = new ResizeObserver((entries: ResizeObserverEntry[]) => {
+      if (entries.length) {
+        handleResize(entries[0]);
+      }
+    });
     observer.observe(containerElement);
     return () => observer.disconnect();
   }, [app, containerElement, searchVisible]);
@@ -362,9 +370,9 @@ const LogListComponent = ({
         return;
       }
       overflowIndexRef.current = index < overflowIndexRef.current ? index : overflowIndexRef.current;
-      debouncedResetAfterIndex(overflowIndexRef.current);
+      resetAfterIndex(overflowIndexRef.current);
     },
-    [debouncedResetAfterIndex, virtualization, widthContainer]
+    [resetAfterIndex, virtualization, widthContainer]
   );
 
   const handleScrollPosition = useCallback(
@@ -393,10 +401,6 @@ const LogListComponent = ({
     [handleTextSelection, toggleDetails]
   );
 
-  const handleLogDetailsResize = useCallback(() => {
-    debouncedResetAfterIndex(0);
-  }, [debouncedResetAfterIndex]);
-
   const focusLogLine = useCallback(
     (log: LogListModel) => {
       const index = filteredLogs.findIndex((filteredLog) => filteredLog.uid === log.uid);
@@ -422,7 +426,6 @@ const LogListComponent = ({
           logs={filteredLogs}
           timeRange={timeRange}
           timeZone={timeZone}
-          onResize={handleLogDetailsResize}
           showControls={showControls}
         />
       )}
