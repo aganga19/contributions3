@@ -9,7 +9,7 @@ import { useStyles2 } from '../../themes/ThemeContext';
 import { getFocusStyles } from '../../themes/mixins';
 import { Icon } from '../Icon/Icon';
 import { Spinner } from '../Spinner/Spinner';
-
+import { Text } from '../Text/Text';
 export interface Props {
   label: ReactNode;
   isOpen: boolean;
@@ -23,6 +23,8 @@ export interface Props {
   headerDataTestId?: string;
   contentDataTestId?: string;
   unmountContentWhenClosed?: boolean;
+  newDesign?: boolean;
+  showOptional?: boolean;
 }
 
 export const CollapsableSection = ({
@@ -37,6 +39,8 @@ export const CollapsableSection = ({
   headerDataTestId,
   contentDataTestId,
   unmountContentWhenClosed = true,
+  newDesign,
+  showOptional,
 }: Props) => {
   const [internalOpenState, toggleInternalOpenState] = useState<boolean>(isOpen);
   const styles = useStyles2(collapsableSectionStyles);
@@ -65,9 +69,13 @@ export const CollapsableSection = ({
   const content = (
     <div
       id={`collapse-content-${id}`}
-      className={cx(styles.content, contentClassName, {
-        [styles.contentHidden]: !unmountContentWhenClosed && !isSectionOpen,
-      })}
+      className={
+        newDesign
+          ? cx(styles.newDesignContent, contentClassName)
+          : cx(styles.content, contentClassName, {
+              [styles.contentHidden]: !unmountContentWhenClosed && !isSectionOpen,
+            })
+      }
       data-testid={contentDataTestId}
     >
       {children}
@@ -76,27 +84,39 @@ export const CollapsableSection = ({
 
   return (
     <>
-      {/* disabling the a11y rules here as the button handles keyboard interactions */}
-      {/* this is just to provide a better experience for mouse users */}
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-      <div onClick={onClick} className={cx(styles.header, className)}>
-        <button
-          type="button"
-          id={`collapse-button-${id}`}
-          className={styles.button}
+      <div className={newDesign ? styles.newDesignContainer : undefined}>
+        {/* disabling the a11y rules here as the button handles keyboard interactions */}
+        {/* this is just to provide a better experience for mouse users */}
+        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+        <div
           onClick={onClick}
-          aria-expanded={isSectionOpen && !loading}
-          aria-controls={`collapse-content-${id}`}
-          aria-labelledby={buttonLabelId}
+          className={newDesign ? cx(styles.newDesignHeader, className) : cx(styles.header, className)}
         >
-          {loading ? (
-            <Spinner className={styles.spinner} />
-          ) : (
-            <Icon name={isSectionOpen ? 'angle-up' : 'angle-down'} className={styles.icon} />
+          <button
+            type="button"
+            id={`collapse-button-${id}`}
+            className={newDesign ? styles.newDesignButton : styles.button}
+            onClick={onClick}
+            aria-expanded={isSectionOpen && !loading}
+            aria-controls={`collapse-content-${id}`}
+            aria-labelledby={buttonLabelId}
+          >
+            {loading ? (
+              <Spinner className={styles.spinner} />
+            ) : (
+              <Icon name={isSectionOpen ? 'angle-up' : 'angle-down'} className={styles.icon} />
+            )}
+          </button>
+          <div className={styles.label} id={`collapse-label-${id}`} data-testid={headerDataTestId}>
+            {label}
+          </div>
+        </div>
+        <div>
+          {showOptional && (
+            <div className={styles.optionalTag}>
+              <Text variant="bodySmall">{`Optional`}</Text>
+            </div>
           )}
-        </button>
-        <div className={styles.label} id={`collapse-label-${id}`} data-testid={headerDataTestId}>
-          {label}
         </div>
       </div>
       {unmountContentWhenClosed ? isSectionOpen && content : content}
@@ -116,6 +136,19 @@ const collapsableSectionStyles = (theme: GrafanaTheme2) => ({
     padding: `${theme.spacing(0.5)} 0`,
     '&:focus-within': getFocusStyles(theme),
   }),
+  newDesignHeader: css({
+    display: 'flex',
+    cursor: 'pointer',
+    boxSizing: 'border-box',
+    fontSize: theme.typography.size.lg,
+    padding: `${theme.spacing(2)}`,
+    '&:focus-within': getFocusStyles(theme),
+  }),
+  newDesignContainer: css({
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  }),
   button: css({
     all: 'unset',
     '&:focus-visible': {
@@ -125,11 +158,28 @@ const collapsableSectionStyles = (theme: GrafanaTheme2) => ({
       boxShadow: 'none',
     },
   }),
+  newDesignButton: css({
+    all: 'unset',
+    '&:focus-visible': {
+      outline: 'none',
+      outlineOffset: 'unset',
+      transition: 'none',
+      boxShadow: 'none',
+    },
+    marginRight: theme.spacing(1),
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: theme.spacing(2),
+  }),
   icon: css({
     color: theme.colors.text.secondary,
   }),
   content: css({
     padding: `${theme.spacing(2)} 0`,
+  }),
+  newDesignContent: css({
+    padding: `${theme.spacing(2)}`,
   }),
   contentHidden: css({
     display: 'none',
@@ -143,5 +193,16 @@ const collapsableSectionStyles = (theme: GrafanaTheme2) => ({
     display: 'flex',
     fontWeight: theme.typography.fontWeightMedium,
     color: theme.colors.text.maxContrast,
+  }),
+  optionalTag: css({
+    // eslint-disable-next-line @grafana/no-border-radius-literal
+    borderRadius: 5,
+    padding: `${theme.spacing(0.25)} ${theme.spacing(0.5)}`,
+    marginRight: theme.spacing(3),
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: theme.colors.text.secondary,
+    border: `1px solid`,
   }),
 });
