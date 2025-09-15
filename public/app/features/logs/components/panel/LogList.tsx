@@ -301,11 +301,9 @@ const LogListComponent = ({
     [filterLogs, levelFilteredLogs, matchingUids]
   );
 
-  const debouncedResetAfterIndex = useMemo(() => {
-    return debounce((index: number) => {
-      listRef.current?.resetAfterIndex(index);
-      overflowIndexRef.current = Infinity;
-    }, 25);
+  const resetAfterIndex = useCallback((index: number) => {
+    listRef.current?.resetAfterIndex(index);
+    overflowIndexRef.current = Infinity;
   }, []);
 
   const debouncedScrollToItem = useMemo(() => {
@@ -346,17 +344,18 @@ const LogListComponent = ({
   }, [wrapLogMessage, showDetails, displayedFields, dedupStrategy]);
 
   useLayoutEffect(() => {
-    if (widthRef.current !== widthContainer.clientWidth) {
-      widthRef.current = widthContainer.clientWidth;
-      debouncedResetAfterIndex(0);
-    }
-  });
-
-  useLayoutEffect(() => {
-    const handleResize = debounce(() => {
+    const handleResize = (entry: ResizeObserverEntry) => {
       setListHeight(getListHeight(containerElement, app, searchVisible));
-    }, 50);
-    const observer = new ResizeObserver(() => handleResize());
+      if (widthRef.current !== entry.contentRect.width) {
+        widthRef.current = entry.contentRect.width;
+        listRef.current?.resetAfterIndex(0);
+      }
+    };
+    const observer = new ResizeObserver((entries: ResizeObserverEntry[]) => {
+      if (entries.length) {
+        handleResize(entries[0]);
+      }
+    });
     observer.observe(containerElement);
     return () => observer.disconnect();
   }, [app, containerElement, searchVisible]);
@@ -371,9 +370,9 @@ const LogListComponent = ({
         return;
       }
       overflowIndexRef.current = index < overflowIndexRef.current ? index : overflowIndexRef.current;
-      debouncedResetAfterIndex(overflowIndexRef.current);
+      resetAfterIndex(overflowIndexRef.current);
     },
-    [debouncedResetAfterIndex, virtualization, widthContainer]
+    [resetAfterIndex, virtualization, widthContainer]
   );
 
   const handleScrollPosition = useCallback(
