@@ -7,7 +7,9 @@ import i18next from 'i18next';
 import failOnConsole from 'jest-fail-on-console';
 import { initReactI18next } from 'react-i18next';
 
+import { setAppEvents } from '@grafana/runtime';
 import { matchers } from '@grafana/test-utils';
+import appEvents from 'app/core/app_events';
 
 import getEnvConfig from '../../scripts/webpack/env-util';
 
@@ -37,6 +39,8 @@ jest.mock('app/features/dashboard-scene/saving/createDetectChangesWorker.ts');
 // our tests are heavy in CI due to parallelisation and monaco and kusto
 // so we increase the default timeout to 2secs to avoid flakiness
 configure({ asyncUtilTimeout: 2000 });
+
+setAppEvents(appEvents);
 
 // Mock Performance API methods not implemented in jsdom
 if (window.performance) {
