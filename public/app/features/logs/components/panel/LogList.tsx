@@ -147,7 +147,7 @@ export const LogList = ({
   setDisplayedFields,
   showControls,
   showTime,
-  showUniqueLabels = true,
+  showUniqueLabels,
   sortOrder,
   syntaxHighlighting = logOptionsStorageKey ? store.getBool(`${logOptionsStorageKey}.syntaxHighlighting`, true) : true,
   timeRange,
