@@ -1614,7 +1614,7 @@ ${buildImageContent(
       return `
 Use this transformation to reduce noise in time series data by applying downsampling. This transformation creates smoother, cleaner visualizations while preserving important trends and patterns in your data.
 
-The smoothing transformation uses the ASAP (As Soon As Possible) algorithm, which automatically determines the optimal points to preserve based on your data's characteristics. Unlike simple downsampling methods, ASAP selects which data points to keep, ensuring that important features like peaks, valleys, and trend changes are maintained.
+The smoothing transformation uses the ASAP (Automatic Smoothing for Attention Prioritization) algorithm, which automatically determines the optimal points to preserve based on your data's characteristics. Unlike simple downsampling methods, ASAP selects which data points to keep, ensuring that important features like peaks, valleys, and trend changes are maintained.
 
 #### Available options
 
